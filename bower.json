@@ -1,0 +1,28 @@
+{
+  "name": "voronoi-3d",
+  "authors": [
+    "chrissbarnett <chrissbarnett@gmail.com>"
+  ],
+  "description": "computational geometry demo",
+  "main": "main.js",
+  "keywords": [
+    "paraboloid",
+    "geometry"
+  ],
+  "license": "MIT",
+  "homepage": "",
+  "private": true,
+  "ignore": [
+    "**/.*",
+    "node_modules",
+    "bower_components",
+    "test",
+    "tests"
+  ],
+  "dependencies": {
+    "underscore": "^1.8.3",
+    "jquery": "^3.1.1",
+    "three.js": "three#*",
+    "bootstrap": "^3.3.7"
+  }
+}

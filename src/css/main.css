@@ -1,0 +1,12 @@
+body {
+    margin: 0;
+    padding-top: 50px;
+
+}
+canvas { width: 100%; height: 100% }
+
+.main-text {
+    padding: 40px 15px;
+    text-align: center;
+}
+
