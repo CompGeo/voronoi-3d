@@ -102,6 +102,11 @@ CompGeo = function() {
         self.params.paraboloidgroup.add(self.params.shapes.lifted);
     };
 
+    this.step4 = function(){
+        self.initConvexHull();
+        //self.params.shapes.paraboloid.visible = false;
+    };
+
     this.progression = [
         {
             text: "One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.",
@@ -114,6 +119,10 @@ CompGeo = function() {
         {
             text: "To lift the points, simply add a z component that matches the z value of the paraboloid.",
             action: self.step3
+        },
+        {
+            text: "Create the convex hull of the points on the paraboloid.",
+            action: self.step4
         }
     ];
 
@@ -135,7 +144,7 @@ CompGeo = function() {
         if (r <= 1) {
           //  console.log(r);
         }
-        return r === 0;
+        return r < .25;
     };
 
     this.coplanar = function (a, b, c, d) {
@@ -146,28 +155,145 @@ CompGeo = function() {
         }
         if (r === 0) {
             var plane = t.plane();
-            return plane.distanceToPoint(d) === 0;
+            return plane.distanceToPoint(d) < .75;
         }
         return false;
     };
 
-    this.hullPointer = -1;
-    this.nextHullPoint = function(v){
-        self.hullPointer++;
-        return v[self.hullPointer];
+
+
+    this.conflicts = {
+        points: [],
+        facets: []
     };
 
-    this.createConvexHull = function(){
-        var vertices = self.params.shapes.lifted.geometry.vertices;
+    this.initConvexHull = function(){
+
+        self.params.shapes.convexhull = new THREE.Object3D();
+        self.params.scene.add(self.params.shapes.convexhull);
+
+        // add points to conflicts list
+        self.conflicts.points = self.params.shapes.lifted.geometry.clone().vertices;
+
+        var tetra = self.createTetrahedron(self.conflicts.points);
+        _.each(tetra, function(f){
+            self.params.shapes.convexhull.add(f);
+
+            // add facets to conflicts list
+            self.conflicts.facets.push({
+                id: _.uniqueId(),
+                face: f
+            });
+        });
+
+        self.initConflicts();
+    };
+
+    this.initConflicts = function(){
+        // for each point in the conflicts list, link the faces it can see.
+        // at the same time, add the points to the faces list.
+
+        _.each(self.conflicts.points, function(p){
+
+            _.each(self.conflicts.facets, function(f){
+                var v = new THREE.Vector3(p.x, p.y, p.z);
+
+                var dp = v.dot(f.face.geometry.faces[0].normal);
+                if (dp >= 0){
+                    if (!_.has(p, "visibleFacets")){
+                        p.visibleFacets = [];
+                    }
+                    p.visibleFacets.push(f);
+
+                    if (!_.has(f, "visiblePoints")){
+                        f.visiblePoints = [];
+                    }
+                    f.visiblePoints.push(p);
+                }
+            });
+        });
+        console.log(self.conflicts);
+    };
+
+    this.createTetrahedron = function(vertices){
+
+        function nextPoint(){
+            var i = _.random(vertices.length - 1);
+            return vertices.splice(i, 1)[0];
+        }
+
+        var a = nextPoint();
+
+        var b = nextPoint();
+
+        var c = nextPoint();
+
+
+        var skipped = [];
+        while(self.collinear(a, b, c)){
+            skipped.push(c);
+            c = nextPoint();
+        }
+
+
+        var d = nextPoint();
+
+
+        while(self.coplanar(a, b, c, d)){
+            skipped.push(d);
+            d = nextPoint();
+        }
+
+        _.each(skipped, function(s){
+           vertices.push(s);
+        });
+
+        var f1 = this.createFace(a,b,c);
+        var f2 = this.createFace(a,b,d);
+        var f3 = this.createFace(b,c,d);
+        var f4 = this.createFace(a,c,d);
+
+        return [f1, f2, f3, f4];
+
+    };
+
+    this.createFace = function(a, b, c){
+        var material = new THREE.MeshStandardMaterial( { color : 0x00cc00,
+            side: THREE.DoubleSide} );
+
+//create a triangular geometry
+        var geometry = new THREE.Geometry();
+        geometry.vertices.push( new THREE.Vector3( a.x, a.y, a.z ) );
+        geometry.vertices.push( new THREE.Vector3(  b.x, b.y, b.z ) );
+        geometry.vertices.push( new THREE.Vector3(  c.x,  c.y, c.z ) );
+
+//create a new face using vertices 0, 1, 2
+        var normal = new THREE.Vector3( 0, 1, 0 ); //optional
+        var color = new THREE.Color( 0xffaa00 ); //optional
+        var materialIndex = 0; //optional
+        var face = new THREE.Face3( 0, 1, 2, normal, color, materialIndex );
+
+//add the face to the geometry's faces array
+        geometry.faces.push( face );
+
+//the face normals and vertex normals can be calculated automatically if not supplied above
+        geometry.computeFaceNormals();
+        geometry.computeVertexNormals();
+
+        return new THREE.Mesh( geometry, material );
+    };
+
+    this.createCannedConvexHull = function(){
+/*        var vertices = self.params.shapes.lifted.geometry.vertices;
         var a = self.nextHullPoint(vertices);
         var b = self.nextHullPoint(vertices);
         var c = self.nextHullPoint(vertices);
 
-        while(!self.collinear(a, b, c)){
+        while(self.collinear(a, b, c)){
             c = self.nextHullPoint(vertices);
         }
         var d = self.nextHullPoint(vertices);
-        while(!self.coplanar(a, b, c, d)){
+        while(self.coplanar(a, b, c, d)){
             d = self.nextHullPoint(vertices);
         }
         console.log(a);
@@ -175,7 +301,26 @@ CompGeo = function() {
         console.log(c);
         console.log(d);
 
-        // this.params.shapes.convexHull = new THREE.ShapeGeometry();
+        this.params.shapes.convexHull = new THREE.ShapeGeometry();*/
+// use the same points to create a convexgeometry
+        var vertices = self.params.shapes.lifted.geometry.vertices;
+        var convexGeometry = new THREE.ConvexGeometry(vertices);
+       // convexMesh = createMesh(convexGeometry);
+        var alpha = .9;
+        var beta = .5;
+        var gamma = .5;
+
+        var diffuseColor = new THREE.Color().setHSL(alpha, 0.5, gamma * 0.5);
+        var surfaceMaterial = new THREE.MeshLambertMaterial({
+            color: diffuseColor,
+            opacity: .9,
+            transparent: true,
+            reflectivity: beta,
+            side: THREE.DoubleSide
+        });
+
+        var hull = new THREE.Mesh(convexGeometry, surfaceMaterial);
+        self.params.scene.add(hull);
     };
 
     this.getParaboloid = function () {
