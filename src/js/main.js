@@ -33,12 +33,36 @@ CompGeo = function() {
 
         params.scene.add(params.axis);
 
+        params.paraboloidgroup.visible = false;
+        params.shapes.grid.visible = false;
+        params.pointgroup.add(params.shapes.grid);
+        params.paraboloidgroup.add(params.shapes.paraboloid);
+
+        params.shapes.lifted.visible = false;
+        params.paraboloidgroup.add(params.shapes.lifted);
+
+        self.createConvexHull();
+        params.shapes.convexhull.visible = false;
+
+        self.projectConvexHullBottom();
+
+        self.toVoronoiBottom_1();
+        self.toVoronoiBottom_2();
+
+
+
         document.addEventListener('mousemove', self.onDocumentMouseMove, false);
         // document.addEventListener( 'dblclick', gridclick, false );
         window.addEventListener('resize', self.onWindowResize, false);
 
         try {
             $('#next').click(self.next);
+        } catch (e) {
+            console.log(e);
+        }
+
+        try {
+            $('#back').click(self.back);
         } catch (e) {
             console.log(e);
         }
@@ -103,27 +127,61 @@ CompGeo = function() {
         self.params.pointgroup.add(self.params.shapes.points);
     };
 
+    this.step1_back = function(){
+        self.params.axis.visible = false;
+        self.params.paraboloidgroup.visible = false;
+        self.params.shapes.grid.visible = false;
+
+    };
+
     this.step2 = function () {
         self.params.axis.visible = true;
-        self.params.pointgroup.add(self.params.shapes.grid);
-        self.params.paraboloidgroup.add(self.params.shapes.paraboloid);
+        self.params.shapes.grid.visible = true;
+        self.params.paraboloidgroup.visible = true;
+
+    };
+
+    this.step2_back = function(){
+        self.params.shapes.points.visible = true;
+        self.params.shapes.lifted.visible = false;
 
     };
 
     this.step3 = function () {
         self.params.shapes.points.visible = false;
-        self.params.paraboloidgroup.add(self.params.shapes.lifted);
+        self.params.shapes.lifted.visible = true;
+    };
+
+    this.step3_back = function(){
+        self.params.shapes.convexhull.visible = false;
+        self.params.shapes.paraboloid.visible = true;
+
     };
 
     this.step4 = function(){
-        self.createConvexHull();
+        self.params.shapes.convexhull.visible = true;
         self.params.shapes.paraboloid.visible = false;
     };
 
+    this.step4_back = function(){
+        self.params.shapes.projectedbottomhull.visible = false;
+        self.params.shapes.lifted.visible = true;
+        self.params.shapes.points.visible = false;
+
+    };
+
     this.step5 = function(){
-        self.projectConvexHullBottom();
+        self.params.shapes.projectedbottomhull.visible = true;
         self.params.shapes.lifted.visible = false;
         self.params.shapes.points.visible = true;
+
+    };
+
+    this.step5_back = function(){
+        self.params.shapes.convexhull.visible = true;
+        self.params.axis.visible = true;
+        self.params.shapes.grid.visible = true;
+        self.params.voronoi_1.visible = false;
 
     };
 
@@ -131,52 +189,103 @@ CompGeo = function() {
         self.params.shapes.convexhull.visible = false;
         self.params.axis.visible = false;
         self.params.shapes.grid.visible = false;
-        self.toVoronoiBottom_1();
+        self.params.voronoi_1.visible = true;
+
+    };
+
+    this.step6_back = function(){
+        self.params.voronoi_2.visible = false;
+        self.params.shapes.delaunaycircles.visible = true;
+
     };
 
     this.step7 = function(){
         self.params.shapes.delaunaycircles.visible = false;
-        self.toVoronoiBottom_2();
+        self.params.voronoi_2.visible = true;
+
     };
 
     this.progression = [
         {
             text: "One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.",
-            action: self.step1
+            next: self.step1
         },
         {
             text: "The paraboloid is of the form x2 + y2  z2, so that its x-y cross sections are circles.",
-            action: self.step2
+            next: self.step2,
+            back: self.step1_back
         },
         {
             text: "To lift the points, simply add a z component that matches the z value of the paraboloid.",
-            action: self.step3
+            next: self.step3,
+            back: self.step2_back
         },
         {
             text: "Create the convex hull of the points on the paraboloid.",
-            action: self.step4
+            next: self.step4,
+            back: self.step3_back
         },
         {
             text: "Project the edges of the convex hull back down to the plane to get the Delaunay triangulation.",
-            action: self.step5
+            next: self.step5,
+            back: self.step4_back
         },
         {
             text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            action: self.step6
+            next: self.step6,
+            back: self.step5_back
         },
         {
             text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            action: self.step7
+            next: self.step7,
+            back: self.step6_back
         }
     ];
 
     this.place = 0;
 
+    this.updatebuttons = function(){
+        if (self.place === self.progression.length){
+            if (!$("#next").hasClass("disabled")) {
+                $("#next").addClass("disabled");
+            }
+        } else {
+            if ($("#next").hasClass("disabled")) {
+                $("#next").removeClass("disabled");
+            }
+        }
+
+        if (self.place <= 1){
+            if (!$("#back").hasClass("disabled")) {
+                $("#back").addClass("disabled");
+            }
+        } else {
+            if ($("#back").hasClass("disabled")) {
+                $("#back").removeClass("disabled");
+            }
+        }
+    };
+
     this.next = function () {
-        var step = self.progression[self.place];
-        step.action();
+        var next = Math.min(self.place, self.progression.length - 1);
+        var step = self.progression[next];
+        step.next();
         $("#description").text(step.text);
-        self.place++;
+        self.place = Math.min(self.place + 1, self.progression.length);
+        self.updatebuttons();
+
+    };
+
+    this.back = function () {
+        var back = Math.max(1, self.place - 1);
+        var step = self.progression[back];
+        if (_.has(step, 'back')) {
+            step.back();
+            $("#description").text(step.text);
+        }
+        self.place = Math.max(1, self.place - 1);
+
+        self.updatebuttons();
 
     };
 
@@ -269,10 +378,11 @@ CompGeo = function() {
 
         self.params.shapes.delaunaycircles = circles;
 
-        self.params.voronoi = new THREE.Group();
-        self.params.voronoi.add(vorvert);
-        self.params.voronoi.add(circles);
-        self.params.pointgroup.add(self.params.voronoi);
+        self.params.voronoi_1 = new THREE.Group();
+        self.params.voronoi_1.add(vorvert);
+        self.params.voronoi_1.add(circles);
+        self.params.voronoi_1.visible = false;
+        self.params.pointgroup.add(self.params.voronoi_1);
 
         self.findNeighbors();
 
@@ -343,7 +453,10 @@ CompGeo = function() {
             linejoin:  'round' //ignored by WebGLRenderer
         } );
 
-        self.params.voronoi.add(new THREE.LineSegments( geometry, material ));
+        self.params.voronoi_2 = new THREE.Group();
+        self.params.voronoi_2.visible = false;
+        self.params.pointgroup.add(self.params.voronoi_2);
+        self.params.voronoi_2.add(new THREE.LineSegments( geometry, material ));
 
 /*
             var i, j, t, n;
@@ -471,6 +584,8 @@ CompGeo = function() {
     this.projectConvexHullBottom = function(){
 
         self.params.shapes.projectedbottomhull = new THREE.Object3D();
+        self.params.shapes.projectedbottomhull.visible = false;
+
         self.params.scene.add(self.params.shapes.projectedbottomhull);
 
         var vertices = self.params.shapes.convexhull.geometry.vertices;
