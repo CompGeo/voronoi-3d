@@ -16,6 +16,7 @@ CompGeo = function() {
     this.init = function () {
         var params = this.params;
         params.scene = new THREE.Scene();
+       // params.scene.rotation.y = ( params.targetRotation - params.scene.rotation.y ) * 0.05;
 
         self.initLighting(params);
 
@@ -64,6 +65,12 @@ CompGeo = function() {
         try {
             $('#back').click(self.back);
         } catch (e) {
+            console.log(e);
+        }
+
+        try {
+            $('#camera_reset').click(self.params.controls.reset);
+        }catch (e) {
             console.log(e);
         }
 
@@ -119,9 +126,13 @@ CompGeo = function() {
         params.shapes.paraboloid = this.getParaboloid();
         params.shapes.lifted = this.getLiftedPoints(params.shapes.points);
 
-        this.next();
+        this.start_flow();
     };
 
+
+    this.scene1 = function(){
+        self.params.scene.setRotationFromAxisAngle(new THREE.Vector3(1,1,1), 0);
+    };
 
     this.step1 = function () {
         self.params.pointgroup.add(self.params.shapes.points);
@@ -131,6 +142,11 @@ CompGeo = function() {
         self.params.axis.visible = false;
         self.params.paraboloidgroup.visible = false;
         self.params.shapes.grid.visible = false;
+
+    };
+
+    this.scene2 = function(){
+        self.params.scene.setRotationFromAxisAngle(new THREE.Vector3(1,0,0),  -3.14/2.5)
 
     };
 
@@ -219,49 +235,51 @@ CompGeo = function() {
     this.progression = [
         {
             text: "One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.",
-            next: self.step1
+            next: self.step1,
+            back: self.step1_back,
+            scene: self.scene1
         },
         {
             text: "The paraboloid is of the form x2 + y2  z2, so that its x-y cross sections are circles.",
             next: self.step2,
-            back: self.step1_back
+            back: self.step2_back,
+            scene: self.scene2
         },
         {
             text: "To lift the points, simply add a z component that matches the z value of the paraboloid.",
             next: self.step3,
-            back: self.step2_back
+            back: self.step3_back
         },
         {
             text: "Create the convex hull of the points on the paraboloid.",
             next: self.step4,
-            back: self.step3_back
+            back: self.step4_back
         },
         {
             text: "Project the edges of the convex hull back down to the plane to get the Delaunay triangulation.",
             next: self.step5,
-            back: self.step4_back
-        },
-        {
-            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            next: self.step6,
             back: self.step5_back
         },
         {
             text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            next: self.step7,
+            next: self.step6,
             back: self.step6_back
         },
         {
             text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            next: self.step8,
+            next: self.step7,
             back: self.step7_back
+        },
+        {
+            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            next: self.step8
         }
     ];
 
     this.place = 0;
 
     this.updatebuttons = function(){
-        if (self.place === self.progression.length){
+        if (self.place === self.progression.length - 1){
             if (!$("#next").hasClass("disabled")) {
                 $("#next").addClass("disabled");
             }
@@ -271,7 +289,7 @@ CompGeo = function() {
             }
         }
 
-        if (self.place <= 1){
+        if (self.place <= 0){
             if (!$("#back").hasClass("disabled")) {
                 $("#back").addClass("disabled");
             }
@@ -282,27 +300,39 @@ CompGeo = function() {
         }
     };
 
-    this.next = function () {
-        var next = Math.min(self.place, self.progression.length - 1);
-        var step = self.progression[next];
+    this.start_flow = function(){
+        self.place = 0;
+        var step = self.progression[self.place];
         step.next();
-        $("#description").text(step.text);
-        self.place = Math.min(self.place + 1, self.progression.length);
-        self.updatebuttons();
+        self.goto(self.place);
+    };
 
+    this.goto = function(idx){
+        var step = self.progression[idx];
+
+        $("#description").text(step.text);
+
+        if (_.has(step, "scene")){
+            step.scene();
+        }
+
+        self.updatebuttons();
+    };
+
+    this.next = function () {
+        self.place = Math.min(self.place + 1, self.progression.length);
+        var step = self.progression[self.place];
+        step.next();
+        self.goto(self.place);
     };
 
     this.back = function () {
-        var back = Math.max(1, self.place - 1);
-        var step = self.progression[back];
+        self.place = Math.max(0, self.place - 1);
+        var step = self.progression[self.place];
         if (_.has(step, 'back')) {
             step.back();
-            $("#description").text(step.text);
         }
-        self.place = Math.max(1, self.place - 1);
-
-        self.updatebuttons();
-
+        self.goto(self.place);
     };
 
     this.getCircle = function(dt){
@@ -840,10 +870,17 @@ CompGeo = function() {
         return new THREE.Points(geometry, material);
     };
 
+    this.q = [];
+
     this.render = function() {
         var params = this.params;
         try {
-            params.scene.rotation.y += ( params.targetRotation - params.scene.rotation.y ) * 0.05;
+
+            while (self.q.length > 0){
+                self.q.pop()();
+                params.camera.updateProjectionMatrix();
+            }
+
             params.renderer.render(params.scene, params.camera);
         } catch (e) {
             console.log(e);
@@ -865,10 +902,11 @@ CompGeo = function() {
         if (this._pause) {
             return;
         }
+        requestAnimationFrame(self.animate);
+
         /// compatibility : http://caniuse.com/requestanimationframe
         self.render();
 
-        requestAnimationFrame(self.animate);
 
     };
 
