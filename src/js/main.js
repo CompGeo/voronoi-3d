@@ -57,7 +57,7 @@ CompGeo = function() {
         window.addEventListener('resize', self.onWindowResize, false);
 
         try {
-            $('#next').click(self.next);
+            $('.next').click(self.next);
         } catch (e) {
             console.log(e);
         }
@@ -234,45 +234,51 @@ CompGeo = function() {
 
     this.progression = [
         {
-            text: "One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.",
+            text: "The demo starts with points on a plane. Ultimately, these points will be Voronoi sites.",
             next: self.step1,
             back: self.step1_back,
             scene: self.scene1
         },
         {
-            text: "The paraboloid is of the form x2 + y2  z2, so that its x-y cross sections are circles.",
+            text: "Add a unit paraboloid above the points.",
             next: self.step2,
             back: self.step2_back,
             scene: self.scene2
         },
         {
-            text: "To lift the points, simply add a z component that matches the z value of the paraboloid.",
+            text: "Lift the input points to the paraboloid. This is done by setting the z value of each point to its respective value on the paraboloid.",
             next: self.step3,
-            back: self.step3_back
+            back: self.step3_back,
+            scene: self.scene2
         },
         {
-            text: "Create the convex hull of the points on the paraboloid.",
+            text: "Construct the 3D convex hull of the lifted points. This must be an O(nlogn) algorithm to maintain the time complexity of the overall algorithm.",
             next: self.step4,
-            back: self.step4_back
+            back: self.step4_back,
+            scene: self.scene2
         },
         {
-            text: "Project the edges of the convex hull back down to the plane to get the Delaunay triangulation.",
+            text: "Project the edges of the lower convex hull back down to the plane to get the Delaunay triangulation of the input point set.",
             next: self.step5,
-            back: self.step5_back
+            back: self.step5_back,
+            scene: self.scene2
         },
         {
-            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            text: "Begin constructing the Voronoi diagram by finding the circles formed by the 3 vertices of each Delaunay triangle. The center of each resultant circle is a vertex in the Voronoi diagram.",
             next: self.step6,
-            back: self.step6_back
+            back: self.step6_back,
+            scene: self.scene1
         },
         {
-            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            text: "Finish constructing the Voronoi diagram by connecting the circumcenters of adjacent triangles. The connecting line segments are subsegments of the bisectors of the edges of the Delaunay triangles. Overlaying the Delaunay triangulation with the Voronoi diagram shows the dual relationship.",
             next: self.step7,
-            back: self.step7_back
+            back: self.step7_back,
+            scene: self.scene1
         },
         {
-            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
-            next: self.step8
+            text: "The Voronoi diagram is completed in O(nlogn) time complexity.",
+            next: self.step8,
+            scene: self.scene1
         }
     ];
 
@@ -280,12 +286,12 @@ CompGeo = function() {
 
     this.updatebuttons = function(){
         if (self.place === self.progression.length - 1){
-            if (!$("#next").hasClass("disabled")) {
-                $("#next").addClass("disabled");
+            if (!$(".next").hasClass("disabled")) {
+                $(".next").addClass("disabled");
             }
         } else {
-            if ($("#next").hasClass("disabled")) {
-                $("#next").removeClass("disabled");
+            if ($(".next").hasClass("disabled")) {
+                $(".next").removeClass("disabled");
             }
         }
 

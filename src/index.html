@@ -23,7 +23,7 @@
                 <span class="icon-bar"></span>
                 <span class="icon-bar"></span>
             </button>
-            <a class="navbar-brand" href="#">Computational Geometry</a>
+            <a class="navbar-brand" href="#">The Relationship between Delaunay Triangulations, Voronoi diagrams, and 3D Convex Hulls</a>
         </div>
         <div id="navbar" class="collapse navbar-collapse">
             <form class="navbar-form navbar-right">
@@ -31,13 +31,12 @@
                     <a id="back" class="btn btn-default form-control" title="back">
                         <span class="glyphicon glyphicon-triangle-left"></span>
                     </a>
-                    <a id="next" class="btn btn-default form-control" title="next">
+                    <a class="btn btn-default form-control next" title="next">
                         <span class="glyphicon glyphicon-triangle-right"></span>
                     </a>
                     <a id="camera_reset" class="btn btn-default form-control" title="reset camera">
                         <span class="glyphicon glyphicon-camera"></span>
                     </a>
-
 
                 </div>
             </form>
@@ -51,11 +50,23 @@
 <div class="container">
 
     <div class="main-text row">
-        <h1>The Relationship between Delauney Triangulations, Voronoi diagrams, and 3D Convex Hulls</h1>
-        <p id="description" class="lead"></p>
-
+        <p class="lead">
+            One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.
+            The paraboloid is of the form x2 + y2  z2, so that its x-y cross sections are circles.
+        </p>
+        <p>
+            Click the arrows in the control bar to step through the algorithm. You can rotate by grabbing and zoom by scrolling. Reset the view
+            by clicking the camera icon.
+        </p>
     </div>
+
     <div id="viz" class="row">
+        <div id="desc_container" class="well">
+            <p id="description"></p>
+            <a class="btn btn-default form-control next" title="next">
+                <span class="glyphicon glyphicon-triangle-right"></span>
+            </a>
+        </div>
     </div>
 </div>
 
