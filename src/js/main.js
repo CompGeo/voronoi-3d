@@ -205,6 +205,17 @@ CompGeo = function() {
 
     };
 
+    this.step7_back = function(){
+        self.params.shapes.projectedbottomhull.visible = true;
+
+    };
+
+    this.step8 = function(){
+      // remove the delaunay triangles
+        self.params.shapes.projectedbottomhull.visible = false;
+
+    };
+
     this.progression = [
         {
             text: "One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.",
@@ -239,6 +250,11 @@ CompGeo = function() {
             text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
             next: self.step7,
             back: self.step6_back
+        },
+        {
+            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            next: self.step8,
+            back: self.step7_back
         }
     ];
 
