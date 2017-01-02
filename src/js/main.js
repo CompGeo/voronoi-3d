@@ -9,7 +9,7 @@ CompGeo = function() {
         height: 750,
         userpoints: [],
         shapes: {},
-        numpoints: 20,
+        numpoints: 100,
         size: 2
     };
 
