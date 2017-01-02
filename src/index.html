@@ -51,8 +51,19 @@
 
     <div class="main-text row">
         <p class="lead">
-            One way to compute the Voronoi diagram of a pointset in O(nlogn) is to lift the points to a paraboloid and compute the convex hull.
-            The paraboloid is of the form x2 + y2  z2, so that its x-y cross sections are circles.
+            <a href="https://en.wikipedia.org/wiki/Voronoi_diagram">Voronoi diagrams</a> partition a plane into regions such that every point in a given region
+            is closer to its Voronoi site than to any other Voronoi site. They have a number of applications, including modeling biological structures, site
+            location in GIS, computer graphics, classification in machine learning, and,
+            famously, <a href="https://en.wikipedia.org/wiki/1854_Broad_Street_cholera_outbreak">finding sources of infection in epidemiology</a>.
+        </p>
+        <p class="lead">
+            Brute force calculation of the Voronoi diagram can be done incrementally in O(n^2 * logn), with a simple optimization to O(n^2).
+            <a href="https://en.wikipedia.org/wiki/Fortune's_algorithm">Fortune's algorithm</a> provides an O(nlogn) method.
+        </p>
+        <p class="lead">
+            One interesting way to compute the Voronoi diagram of a point set in O(nlogn) time complexity that illuminates geometric relationships is to lift the points to a paraboloid and compute the 3D convex hull.
+            Project the convex hull edges back to the original plane to get the Delaunay triangulation of the input point set. The Voronoi diagram can be calculated
+            in linear time from the Delaunay triangulation, as it is its dual graph.
         </p>
         <p>
             Click the arrows in the control bar to step through the algorithm. You can rotate by grabbing and zoom by scrolling. Reset the view
