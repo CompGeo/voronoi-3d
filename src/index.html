@@ -62,8 +62,16 @@
         </p>
         <p class="lead">
             One interesting way to compute the Voronoi diagram of a point set in O(nlogn) time complexity that illuminates geometric relationships is to lift the points to a paraboloid and compute the 3D convex hull.
-            Project the convex hull edges back to the original plane to get the Delaunay triangulation of the input point set. The Voronoi diagram can be calculated
-            in linear time from the Delaunay triangulation, as it is its dual graph.
+            Project the lower convex hull edges back to the original plane to get the Delaunay triangulation of the input point set.
+        </p>
+        <p class="lead">
+            This may be surprising until one sees a particular relationship between the 3D convex hull and Delaunay triangulations. If we extend each triangular
+            face of the convex hull into a plane, we see that the resultant plane's intersection with the paraboloid forms an ellipse. Because of the
+            chosen paraboloid, the ellipse projects to the x-y plane as a circle. By the convexity of the convex hull, no other input points will be within
+            the projected circle. This matches perfectly with the definition of a Delaunay triangulation.
+        </p>
+        <p class="lead">
+            As a final step, the Voronoi diagram can be calculated in linear time from the Delaunay triangulation, as it is its dual graph.
         </p>
         <p>
             Click the arrows in the control bar to step through the algorithm. You can rotate by grabbing and zoom by scrolling. Reset the view
