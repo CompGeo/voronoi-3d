@@ -5,32 +5,21 @@ CompGeo = function() {
         targetRotation: 0,
         windowHalfX: window.innerWidth / 2,
         windowHalfY: window.innerHeight / 2,
-        width: 750,
+        width: 1000,
         height: 750,
         userpoints: [],
         shapes: {},
-        numpoints: 50,
+        numpoints: 20,
         size: 2
     };
 
     this.init = function () {
         var params = this.params;
         params.scene = new THREE.Scene();
-        params.scene.add(new THREE.AmbientLight(0x999999));
-        var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(-1, -1, -1).normalize();
-        params.scene.add(directionalLight);
 
-        var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
-        directionalLight.position.set(1, 1, 1).normalize();
-        params.scene.add(directionalLight);
+        self.initLighting(params);
 
-        params.camera = new THREE.OrthographicCamera(params.width / -2, params.width / 2,
-            params.height / 2, params.height / -2, 1, 1000);
-
-        params.camera.position.set(0, 0, 200);
-        params.camera.zoom = 150;
-        params.camera.updateProjectionMatrix();
+        self.initCamera(params);
 
         params.raycaster = new THREE.Raycaster();
         params.mouse = new THREE.Vector2();
@@ -39,8 +28,10 @@ CompGeo = function() {
 
         this.generateShapes();
 
-        var axisHelper = new THREE.AxisHelper(5);
-        params.scene.add(axisHelper);
+        params.axis = new THREE.AxisHelper(5);
+        params.axis.visible = false;
+
+        params.scene.add(params.axis);
 
         document.addEventListener('mousemove', self.onDocumentMouseMove, false);
         // document.addEventListener( 'dblclick', gridclick, false );
@@ -54,6 +45,27 @@ CompGeo = function() {
 
         this.animate();
 
+    };
+
+    this.initCamera = function(params){
+        params.camera = new THREE.OrthographicCamera(params.width / -2, params.width / 2,
+            params.height / 2, params.height / -2, 1, 1000);
+
+        params.camera.position.set(0, 0, 200);
+        params.camera.zoom = 150;
+        params.camera.updateProjectionMatrix();
+    };
+
+    this.initLighting = function(params){
+
+        params.scene.add(new THREE.AmbientLight(0x999999));
+        var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(-1, -1, -1).normalize();
+        params.scene.add(directionalLight);
+
+        var directionalLight = new THREE.DirectionalLight(0xffffff, 1);
+        directionalLight.position.set(1, 1, 1).normalize();
+        params.scene.add(directionalLight);
     };
 
     this.initRenderer = function () {
@@ -88,11 +100,12 @@ CompGeo = function() {
 
 
     this.step1 = function () {
-        self.params.pointgroup.add(self.params.shapes.grid);
         self.params.pointgroup.add(self.params.shapes.points);
     };
 
     this.step2 = function () {
+        self.params.axis.visible = true;
+        self.params.pointgroup.add(self.params.shapes.grid);
         self.params.paraboloidgroup.add(self.params.shapes.paraboloid);
 
     };
@@ -103,8 +116,27 @@ CompGeo = function() {
     };
 
     this.step4 = function(){
-        self.initConvexHull();
-        //self.params.shapes.paraboloid.visible = false;
+        self.createConvexHull();
+        self.params.shapes.paraboloid.visible = false;
+    };
+
+    this.step5 = function(){
+        self.projectConvexHullBottom();
+        self.params.shapes.lifted.visible = false;
+        self.params.shapes.points.visible = true;
+
+    };
+
+    this.step6 = function(){
+        self.params.shapes.convexhull.visible = false;
+        self.params.axis.visible = false;
+        self.params.shapes.grid.visible = false;
+        self.toVoronoiBottom_1();
+    };
+
+    this.step7 = function(){
+        self.params.shapes.delaunaycircles.visible = false;
+        self.toVoronoiBottom_2();
     };
 
     this.progression = [
@@ -123,6 +155,18 @@ CompGeo = function() {
         {
             text: "Create the convex hull of the points on the paraboloid.",
             action: self.step4
+        },
+        {
+            text: "Project the edges of the convex hull back down to the plane to get the Delaunay triangulation.",
+            action: self.step5
+        },
+        {
+            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            action: self.step6
+        },
+        {
+            text: "The Voronoi diagram is the dual of the Delaunay triangulation.",
+            action: self.step7
         }
     ];
 
@@ -136,174 +180,273 @@ CompGeo = function() {
 
     };
 
-
-
-    this.collinear = function (a, b, c) {
-        var t = new THREE.Triangle(a, b, c);
-        var r = t.area();
-        if (r <= 1) {
-          //  console.log(r);
+    this.getCircle = function(dt){
+        var vertices = [];
+        var vert = dt.geometry.attributes.position.array;
+        for (var i = 0; i < vert.length; i += 3){
+            var v = new THREE.Vector3(vert[i], vert[i+1], vert[i+2]);
+            if (_.isUndefined(_.findWhere(vertices, {x: v.x, y: v.y, z: 0}))) {
+                vertices.push(v);
+            }
         }
-        return r < .25;
-    };
+        var props = self.getCircleProperties(vertices);
+        var x = props.x;
+        var y = props.y;
+        var r = props.r;
+        var geometry = new THREE.CircleGeometry(r, 50);
+        geometry.translate(x, y, 0);
 
-    this.coplanar = function (a, b, c, d) {
-        var t = new THREE.Triangle(a, b, c);
-        var r = t.area();
-        if (r <= 1) {
-           // console.log(r);
-        }
-        if (r === 0) {
-            var plane = t.plane();
-            return plane.distanceToPoint(d) < .75;
-        }
-        return false;
-    };
+        var edges = new THREE.EdgesGeometry(geometry);
 
-
-
-    this.conflicts = {
-        points: [],
-        facets: []
-    };
-
-    this.initConvexHull = function(){
-
-        self.params.shapes.convexhull = new THREE.Object3D();
-        self.params.scene.add(self.params.shapes.convexhull);
-
-        // add points to conflicts list
-        self.conflicts.points = self.params.shapes.lifted.geometry.clone().vertices;
-
-        var tetra = self.createTetrahedron(self.conflicts.points);
-        _.each(tetra, function(f){
-            self.params.shapes.convexhull.add(f);
-
-            // add facets to conflicts list
-            self.conflicts.facets.push({
-                id: _.uniqueId(),
-                face: f
-            });
+        var material = new THREE.LineBasicMaterial({
+            color: 0xffff00,
+            linecap: 'round', //ignored by WebGLRenderer
+            linejoin:  'round' //ignored by WebGLRenderer
         });
 
-        self.initConflicts();
+
+        var seg = [{
+            edge: [vertices[0], vertices[1]],
+            neighbor: null
+        }, {
+            edge: [vertices[1], vertices[2]],
+            neighbor: null
+        }, {
+            edge: [vertices[2], vertices[0]],
+            neighbor: null
+        }];
+
+        return {
+            id: _.uniqueId(),
+            edges: seg,
+            circle: new THREE.LineSegments(edges, material),
+            center: new THREE.Vector3(x, y, 0)
+        }
     };
 
-    this.initConflicts = function(){
-        // for each point in the conflicts list, link the faces it can see.
-        // at the same time, add the points to the faces list.
+    this.getCircleProperties = function(vertices){
 
-        _.each(self.conflicts.points, function(p){
+        // Compute the coordinates of the center of the circumcircle, radius
+        var v1 = vertices[0];
+        var v2 = vertices[1];
+        var v3 = vertices[2];
 
-            _.each(self.conflicts.facets, function(f){
-                var v = new THREE.Vector3(p.x, p.y, p.z);
+        var ab = Math.pow(v1.x, 2) + Math.pow(v1.y, 2);
+        var cd = Math.pow(v2.x, 2) + Math.pow(v2.y, 2);
+        var ef = Math.pow(v3.x, 2) + Math.pow(v3.y, 2);
 
-                var dp = v.dot(f.face.geometry.faces[0].normal);
-                if (dp >= 0){
-                    if (!_.has(p, "visibleFacets")){
-                        p.visibleFacets = [];
-                    }
-                    p.visibleFacets.push(f);
+        // Compute the circumcircle
+        var circumX = 	(ab * (v3.y - v2.y) + cd * (v1.y - v3.y) + ef * (v2.y - v1.y)) /
+            (v1.x * (v3.y - v2.y) + v2.x * (v1.y - v3.y) + v3.x * (v2.y - v1.y)) / 2;
+        var circumY = 	(ab * (v3.x - v2.x) + cd * (v1.x - v3.x) + ef * (v2.x - v1.x)) /
+            (v1.y * (v3.x - v2.x) + v2.y * (v1.x - v3.x) + v3.y * (v2.x - v1.x)) / 2;
+        var radius = Math.sqrt(Math.pow(v1.x - circumX, 2) + Math.pow(v1.y - circumY, 2));
 
-                    if (!_.has(f, "visiblePoints")){
-                        f.visiblePoints = [];
-                    }
-                    f.visiblePoints.push(p);
+        return {
+            x: circumX,
+            y: circumY,
+            r: radius
+        };
+    };
+
+    this.toVoronoiBottom_1 = function() {
+        self.params.triangles = [];
+        var vv = [];
+        var circles = new THREE.Object3D();
+
+        _.each(self.params.shapes.projectedbottomhull.children, function (tri) {
+            var dt = tri.clone();
+            var c = self.getCircle(dt);
+
+            self.params.triangles.push(c);
+
+            circles.add(c.circle);
+
+            vv.push(c.center);
+
+        });
+        var vorvert = self.addPoints(vv, 0x0000ff);
+
+        self.params.shapes.delaunaycircles = circles;
+
+        self.params.voronoi = new THREE.Group();
+        self.params.voronoi.add(vorvert);
+        self.params.voronoi.add(circles);
+        self.params.pointgroup.add(self.params.voronoi);
+
+        self.findNeighbors();
+
+    };
+
+
+    this.findNeighbors = function(){
+        function edgematch (d, e){
+            return (pointmatch(d[0], e[0]) && pointmatch(d[1], e[1])) || (pointmatch(d[0], e[1]) && pointmatch(d[1], e[0]));
+        }
+
+        function pointmatch(a, b){
+            return a.x == b.x && a.y == b.y && a.z == b.z;
+        }
+
+        for (var i = 0; i < self.params.triangles.length; i++){
+            var t = self.params.triangles[i];
+            _.each(t.edges, function(e) {
+                if (e.neighbor !== null){
+                    return;
                 }
+                for (var j = 0; j < self.params.triangles.length; j++){
+                    if (i === j){
+                        continue;
+                    }
+                    var t1 = self.params.triangles[j];
+
+                    _.each(t1.edges, function(e1){
+                        if (e1.neighbor !== null){
+                            return;
+                        }
+                        if (edgematch(e.edge, e1.edge)){
+                            e.neighbor = t1.id;
+                            e1.neighbor = t.id;
+                        }
+                    });
+                }
+
             });
-        });
-        console.log(self.conflicts);
+        }
     };
 
-    this.createTetrahedron = function(vertices){
+    this.toVoronoiBottom_2 = function(){
+        /**
+         * For each edge in the triangulation, create a new perpendicular edge between the circumcentres
+         * of the two triangles that share that edge.
+         */
+        self.params.shapes.voronoiedges = new THREE.Object3D();
+        self.params.scene.add(self.params.shapes.voronoiedges);
 
-        function nextPoint(){
-            var i = _.random(vertices.length - 1);
-            return vertices.splice(i, 1)[0];
-        }
-
-        var a = nextPoint();
-
-        var b = nextPoint();
-
-        var c = nextPoint();
-
-
-        var skipped = [];
-        while(self.collinear(a, b, c)){
-            skipped.push(c);
-            c = nextPoint();
-        }
-
-
-        var d = nextPoint();
-
-
-        while(self.coplanar(a, b, c, d)){
-            skipped.push(d);
-            d = nextPoint();
-        }
-
-        _.each(skipped, function(s){
-           vertices.push(s);
-        });
-
-        var f1 = this.createFace(a,b,c);
-        var f2 = this.createFace(a,b,d);
-        var f3 = this.createFace(b,c,d);
-        var f4 = this.createFace(a,c,d);
-
-        return [f1, f2, f3, f4];
-
-    };
-
-    this.createFace = function(a, b, c){
-        var material = new THREE.MeshStandardMaterial( { color : 0x00cc00,
-            side: THREE.DoubleSide} );
-
-//create a triangular geometry
         var geometry = new THREE.Geometry();
-        geometry.vertices.push( new THREE.Vector3( a.x, a.y, a.z ) );
-        geometry.vertices.push( new THREE.Vector3(  b.x, b.y, b.z ) );
-        geometry.vertices.push( new THREE.Vector3(  c.x,  c.y, c.z ) );
+        for (var i = 0; i < self.params.triangles.length; i++){
+            var t = self.params.triangles[i];
+            _.each(t.edges, function(e) {
+                if (e.neighbor !== null){
+                    var n = _.findWhere(self.params.triangles, {id: e.neighbor});
 
-//create a new face using vertices 0, 1, 2
-        var normal = new THREE.Vector3( 0, 1, 0 ); //optional
-        var color = new THREE.Color( 0xffaa00 ); //optional
-        var materialIndex = 0; //optional
-        var face = new THREE.Face3( 0, 1, 2, normal, color, materialIndex );
+                    geometry.vertices.push(t.center, n.center);
+                }
 
-//add the face to the geometry's faces array
-        geometry.faces.push( face );
+            });
+        }
 
-//the face normals and vertex normals can be calculated automatically if not supplied above
-        geometry.computeFaceNormals();
-        geometry.computeVertexNormals();
 
-        return new THREE.Mesh( geometry, material );
+        var material = new THREE.LineBasicMaterial( {
+            color: 0x00ffff,
+            linecap: 'round', //ignored by WebGLRenderer
+            linejoin:  'round' //ignored by WebGLRenderer
+        } );
+
+        self.params.voronoi.add(new THREE.LineSegments( geometry, material ));
+
+/*
+            var i, j, t, n;
+            for (i = 0; i < this.delaunayTriangles.length; i += 1) {
+                t = this.delaunayTriangles[i];
+                for (j = 0; j < 3; j += 1) {
+                    n = t.getNeighbour(t.edges[j]);
+                    // Ensure the Voronoi edge hasn't already been created
+                    var nIndex = this.delaunayTriangles.indexOf(n);
+                    if (nIndex > i) {
+                        // Create the Voronoi edge between the circumcentres of the two triangles t and n
+                        let e = new Edge(
+                            new Vertex(t.circumX, t.circumY),
+                            new Vertex(n.circumX, n.circumY)
+                        );
+
+                        this.voronoiEdges.push(e);
+                    } else if (nIndex === -1) {
+                        // The neighbour is a triangle that has been deleted
+                        // i.e. this triangle is now on the perimeter of the Delaunay triangulation
+
+                        // Get the perimeter edge
+                        let e = t.edges[j];
+
+                        // Remove the neighbour, just to keep everything clean
+                        t.setNeighbour(e, null);
+
+                        // Find the equation of the edge's line (y = a1.x + b1); calculate the denominator first in case it's equal to 0
+                        var a1, b1, denom;
+                        denom = e.v1.x - e.v2.x;
+                        if (denom !== 0) {
+                            a1 = (e.v1.y - e.v2.y) / denom;
+                            b1 = e.v1.y - a1 * e.v1.x;
+                        } else {
+                            // The line is vertical; use the equation x = b1 instead
+                            a1 = null;
+                            b1 = e.v1.x;
+                        }
+
+                        // Get the coordinates of the middle of the edge
+                        var midX = e.v1.x + (e.v2.x - e.v1.x) / 2;
+                        var midY = e.v1.y + (e.v2.y - e.v1.y) / 2;
+
+                        // Deduce the equation of the line that is perpendicular to the middle of the edge (y = a2.x + b2)
+                        var a2, b2;
+                        if (a1 !== null) {
+                            if (a1 !== 0) {
+                                a2 = -1 / a1;
+                                b2 = midY - a2 * midX;
+                            } else {
+                                // The perpendicular is a vertical line
+                                a2 = null;
+                                b2 = midX;
+                            }
+                        } else {
+                            // The perpendicular is a horizontal line
+                            a2 = 0;
+                            b2 = midY;
+                        }
+
+                        // Find the vertex opposite to the edge
+                        var oppositeVertex = null;
+                        for (var k = 0; k < 3; k += 1) {
+                            var v = t.vertices[k];
+                            if (e.v1 != v && e.v2 != v) {
+                                oppositeVertex = v;
+                                break;
+                            }
+                        }
+
+                        var a3, b3, projX, coeff, chosenFar;
+
+                        if (a2 !== null) {
+                            if (a1 !== null) {
+                                a3 = a2;
+                                b3 = oppositeVertex.y - a3 * oppositeVertex.x;
+                                projX = (b3 - b1) / (a1 - a3);
+                            } else {
+                                projX = b1;
+                            }
+
+                            coeff = oppositeVertex.x < projX ? this.width : 0;
+                            chosenFar = new Vertex(coeff, a2 * coeff + b2);
+                        } else {
+                            var farY = oppositeVertex.y < midY ? this.height : 0;
+                            chosenFar = new Vertex(b2, farY);
+                        }
+
+                        // Create and store the Voronoi perimeter edge
+                        var newE = new Edge(new Vertex(t.circumX, t.circumY), chosenFar);
+                        this.voronoiEdges.push(newE);
+                    }
+                }
+            }*/
+
+
     };
 
-    this.createCannedConvexHull = function(){
-/*        var vertices = self.params.shapes.lifted.geometry.vertices;
-        var a = self.nextHullPoint(vertices);
-        var b = self.nextHullPoint(vertices);
-        var c = self.nextHullPoint(vertices);
+    this.createConvexHull = function(){
 
-        while(self.collinear(a, b, c)){
-            c = self.nextHullPoint(vertices);
-        }
-        var d = self.nextHullPoint(vertices);
-        while(self.coplanar(a, b, c, d)){
-            d = self.nextHullPoint(vertices);
-        }
-        console.log(a);
-        console.log(b);
-        console.log(c);
-        console.log(d);
-
-        this.params.shapes.convexHull = new THREE.ShapeGeometry();*/
 // use the same points to create a convexgeometry
-        var vertices = self.params.shapes.lifted.geometry.vertices;
+        var vertices = self.params.shapes.lifted.geometry.clone().vertices;
+
         var convexGeometry = new THREE.ConvexGeometry(vertices);
        // convexMesh = createMesh(convexGeometry);
         var alpha = .9;
@@ -321,7 +464,152 @@ CompGeo = function() {
 
         var hull = new THREE.Mesh(convexGeometry, surfaceMaterial);
         self.params.scene.add(hull);
+
+        self.params.shapes.convexhull = hull;
     };
+
+    this.projectConvexHullBottom = function(){
+
+        self.params.shapes.projectedbottomhull = new THREE.Object3D();
+        self.params.scene.add(self.params.shapes.projectedbottomhull);
+
+        var vertices = self.params.shapes.convexhull.geometry.vertices;
+
+        _.each(self.params.shapes.convexhull.geometry.faces, function(face){
+            if (visibleFromBottom(face, vertices)){
+                var projected = [];
+
+                var va = vertices[face.a];
+                projected.push(new THREE.Vector3(va.x, va.y, 0));
+
+                var vb = vertices[face.b];
+                projected.push(new THREE.Vector3(vb.x, vb.y, 0));
+
+                var vc = vertices[face.c];
+                projected.push(new THREE.Vector3(vc.x, vc.y, 0));
+
+                self.params.shapes.projectedbottomhull.add(self.createDelaunayTriangle(projected));
+            }
+        });
+
+    };
+
+    this.projectConvexHullTop = function(){
+
+        self.params.shapes.projectedtophull = new THREE.Object3D();
+        self.params.scene.add(self.params.shapes.projectedtophull);
+
+        var vertices = self.params.shapes.convexhull.vertices;
+
+        _.each(self.params.shapes.convexhull.faces, function(face){
+            if (visibleFromTop(face, vertices)){
+                var projected = [];
+
+                var va = vertices[face.a];
+                projected.push(new THREE.Vector3(va.x, va.y, 0));
+
+                var vb = vertices[face.b];
+                projected.push(new THREE.Vector3(vb.x, vb.y, 0));
+
+                var vc = vertices[face.c];
+                projected.push(new THREE.Vector3(vc.x, vc.y, 0));
+
+                self.params.shapes.projectedtophull.add(self.createDelaunayTriangle(projected));
+            }
+        });
+
+    };
+
+    this.createDelaunayTriangle = function (vertices) {
+        var geometry = new THREE.Geometry();
+        geometry.vertices = vertices;
+
+        //create a new face using vertices 0, 1, 2
+        var color = new THREE.Color(0xffaa00); //optional
+        var materialIndex = 0; //optional
+
+        var face = new THREE.Face3(0, 1, 2, null, color, materialIndex);
+
+        //add the face to the geometry's faces array
+        geometry.faces.push(face);
+
+        //the face normals and vertex normals can be calculated automatically if not supplied above
+        geometry.computeFaceNormals();
+
+        var edges = new THREE.EdgesGeometry( geometry );
+
+
+        var material = new THREE.LineBasicMaterial( {
+            color: 0xffffff,
+            linecap: 'round', //ignored by WebGLRenderer
+            linejoin:  'round' //ignored by WebGLRenderer
+        } );
+
+        return  new THREE.LineSegments( edges, material );
+
+    };
+
+    function visibleFromBottom(face, vertices){
+      return visible(face, vertices, new THREE.Vector3(0,0,-500));
+    }
+
+    function visibleFromTop(face, vertices){
+        return visible(face, vertices, new THREE.Vector3(0,0,500));
+    }
+
+    /**
+     * Whether the face is visible from the vertex
+     */
+    function visible( face, vertices, vertex ) {
+
+        var va = vertices[ face[ "a" ] ];
+        var vb = vertices[ face[ "b" ] ];
+        var vc = vertices[ face[ "c" ] ];
+
+        var n = normal( va, vb, vc );
+
+        // distance from face to origin
+        var dist = n.dot( va );
+
+        return n.dot( vertex ) >= dist;
+
+    }
+
+    /**
+     * Face normal
+     */
+    function normal( va, vb, vc ) {
+
+        var cb = new THREE.Vector3();
+        var ab = new THREE.Vector3();
+
+        cb.subVectors( vc, vb );
+        ab.subVectors( va, vb );
+        cb.cross( ab );
+
+        cb.normalize();
+
+        return cb;
+
+    }
+
+
+    function bisector(a, b){
+        var mid = {
+            x: (a.x + b.x)/2,
+            y: (a.y + b.y)/2
+        };
+
+        var slope = -1 * (b.x - a.x)/(b.y - a.y);
+
+        //y = mx + b
+        var icept = mid.y - slope * mid.x;
+
+        return {
+            m: slope,
+            b: icept
+        };
+    }
 
     this.getParaboloid = function () {
 
@@ -386,12 +674,22 @@ CompGeo = function() {
             points.push(pointGenerator());
         }
 
+        return self.addPoints(points, 0xff0000);
+    };
+
+    this.addPoints = function(points, color){
         var geometry = new THREE.Geometry();
-        for (i = 0; i < points.length; i += 1) {
-            geometry.vertices.push(new THREE.Vector3().fromArray(points[i]));
+        for (var i = 0; i < points.length; i += 1) {
+            var p = points[i];
+            if (_.has(p, 'x')){
+                geometry.vertices.push(new THREE.Vector3(p.x, p.y, p.z));
+
+            } else {
+                geometry.vertices.push(new THREE.Vector3().fromArray(p));
+            }
         }
 
-        var material = new THREE.PointsMaterial({color: 0xff0000, size: 3.0});
+        var material = new THREE.PointsMaterial({color: color, size: 3.0});
         return new THREE.Points(geometry, material);
     };
 
